@@ -67,7 +67,7 @@ env:
   SOFT_PKGS: "BSgenome.Hsapiens.UCSC.hg38 BSgenome.Mmusculus.UCSC.mm10"
   SOURCE_REBUILD: "gdtools"
   PREFETCH_SCRIPT: ""
-  APP_NOTES: "All analysis modules and www/ demo data are bundled. BSgenome.Hsapiens.UCSC.hg38 and BSgenome.Mmusculus.UCSC.mm10 (~1.4 GB combined) exceed the 2 GiB desktop bundle limit and are not shipped, so the TF motif-scanning module (JASPAR + BSgenome) is disabled; every other module is available offline. The top-level auto-install lines for those two genomes were removed from global.R in the bundle only. sc-Type reference scripts and ScTypeDB are vendored into www/sctype for offline use. The two BSgenome genomes are downloaded on demand into a per-user library when the TF module is first used (~700 MB per species). Cairo dylibs are vendored into the macOS bundle, so users do not need XQuartz."
+  APP_NOTES: "All analysis modules and www/ demo data are bundled. BSgenome.Hsapiens.UCSC.hg38 and BSgenome.Mmusculus.UCSC.mm10 (~1.4 GB combined) exceed the 2 GiB desktop bundle limit and are not shipped, so the TF motif-scanning module (JASPAR + BSgenome) is disabled; every other module is available offline. The top-level auto-install lines for those two genomes were removed from global.R in the bundle only. sc-Type reference scripts and ScTypeDB are vendored into www/sctype for offline use. The two BSgenome genomes are downloaded on demand into a per-user library when the TF module is first used (~700 MB per species). Cairo dylibs are vendored into the macOS bundle and the package version is rebased to 1.7-0.9001 so the store keeps it in this app-private library instead of reusing another app copy; users do not need XQuartz."
   MAX_REQUEST_MB: "4096"
   SMOKE: "on"
   SMOKE_TIMEOUT_SEC: "1800"
@@ -415,6 +415,22 @@ jobs:
           for (p in required) { ok <- tryCatch({ loadNamespace(p, lib.loc = lib); TRUE }, error = function(e) { cat("LOAD FAILED:", p, "->", conditionMessage(e), "\n"); FALSE }); if (!ok) stop("seed package cannot be loaded from rlib: ", p) }
           soft_missing <- setdiff(intersect(soft, seed), c(have(), base_pkgs))
           cat("rlib packages:", length(have()), "| soft missing:", paste(soft_missing, collapse = ","), "\n")
+
+          # macOS: give the vendored Cairo a unique version so the store's shared-library
+          # reconciliation puts it in this app's PRIVATE library instead of reusing (and
+          # silently skipping) another app's Cairo 1.7-0, whose binary links /opt/X11.
+          if (identical(unname(Sys.info()[["sysname"]]), "Darwin") && "Cairo" %in% have()) {
+            cd <- file.path(lib, "Cairo")
+            dcf <- read.dcf(file.path(cd, "DESCRIPTION"))
+            dcf[1, "Version"] <- "1.7-0.9001"
+            write.dcf(dcf, file.path(cd, "DESCRIPTION"))
+            mp <- file.path(cd, "Meta", "package.rds")
+            if (file.exists(mp)) {
+              m <- readRDS(mp)
+              if (!is.null(m$DESCRIPTION)) { m$DESCRIPTION["Version"] <- "1.7-0.9001"; saveRDS(m, mp) }
+            }
+            cat("Cairo version rebased to 1.7-0.9001 for private-lib isolation\n")
+          }
 
           entry <- if (file.exists(file.path(appdir, "app.R"))) "app/app.R" else "app/ui.R"
           pkgs <- as.data.frame(installed.packages(lib.loc = lib), stringsAsFactors = FALSE)
