@@ -181,6 +181,19 @@ jobs:
           cat("desktop patches applied; ensure_bsgenome present:",
               any(grepl("ensure_bsgenome", readLines(g, warn = FALSE))), "\n")
 
+      - name: Install macOS build dependencies (OpenSSL, HDF5)
+        if: runner.os == 'macOS'
+        run: |
+          # alabaster.base links -lssl and BPCells probes `pkg-config hdf5`. Homebrew's
+          # openssl/hdf5 are keg-only, so expose them explicitly. The resulting Homebrew
+          # references are later vendored into the bundle by the otool pass.
+          brew install openssl@3 hdf5
+          echo "PKG_CONFIG_PATH=$(brew --prefix openssl@3)/lib/pkgconfig:$(brew --prefix hdf5)/lib/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
+          echo "LDFLAGS=-L$(brew --prefix openssl@3)/lib -L$(brew --prefix hdf5)/lib" >> "$GITHUB_ENV"
+          echo "CPPFLAGS=-I$(brew --prefix openssl@3)/include -I$(brew --prefix hdf5)/include" >> "$GITHUB_ENV"
+          echo "HDF5_DIR=$(brew --prefix hdf5)" >> "$GITHUB_ENV"
+          pkg-config --cflags --libs hdf5
+
       - name: Install XQuartz (macOS, for dylib vendoring only)
         if: runner.os == 'macOS'
         run: |
