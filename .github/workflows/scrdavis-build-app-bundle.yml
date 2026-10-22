@@ -67,7 +67,7 @@ env:
   SOFT_PKGS: "BSgenome.Hsapiens.UCSC.hg38 BSgenome.Mmusculus.UCSC.mm10"
   SOURCE_REBUILD: ""
   PREFETCH_SCRIPT: ""
-  APP_NOTES: "All analysis modules and www/ demo data are bundled. BSgenome.Hsapiens.UCSC.hg38 and BSgenome.Mmusculus.UCSC.mm10 (~1.4 GB combined) exceed the 2 GiB desktop bundle limit and are not shipped, so the TF motif-scanning module (JASPAR + BSgenome) is disabled; every other module is available offline. The top-level auto-install lines for those two genomes were removed from global.R in the bundle only. sc-Type reference scripts and ScTypeDB are vendored into www/sctype for offline use. This first build is Windows-only: monocle3 imports ggrastr, which pulls Cairo, whose macOS binary requires XQuartz and cannot be shipped portably; macOS support will be addressed separately."
+  APP_NOTES: "All analysis modules and www/ demo data are bundled. BSgenome.Hsapiens.UCSC.hg38 and BSgenome.Mmusculus.UCSC.mm10 (~1.4 GB combined) exceed the 2 GiB desktop bundle limit and are not shipped, so the TF motif-scanning module (JASPAR + BSgenome) is disabled; every other module is available offline. The top-level auto-install lines for those two genomes were removed from global.R in the bundle only. sc-Type reference scripts and ScTypeDB are vendored into www/sctype for offline use. The two BSgenome genomes are downloaded on demand into a per-user library when the TF module is first used (~700 MB per species). This build is Windows-only: monocle3 imports ggrastr, which pulls Cairo, whose macOS binary requires XQuartz and cannot be shipped portably; macOS support will be addressed separately."
   MAX_REQUEST_MB: "4096"
   SMOKE: "on"
   SMOKE_TIMEOUT_SEC: "1800"
@@ -116,17 +116,45 @@ jobs:
         shell: Rscript {0}
         run: |
           # Bundle-only patches; upstream sources are untouched.
-          # 1) Drop the top-level auto-install guards for the two BSgenome genomes
-          #    (~1.4 GB) that cannot be shipped within the 2 GiB bundle limit.
-          for (f in list.files(".", pattern = "[.]R$", recursive = TRUE, full.names = TRUE)) {
-            y <- readLines(f, warn = FALSE)
-            if (any(grepl("BSgenome", y))) {
-              y <- y[!grepl("BSgenome", y)]
-              writeLines(y, f)
-              cat("BSgenome references removed from", f, "\n")
-            }
-          }
-          g <- "global.R"
+          # 1) Remove the startup auto-install of the two BSgenome genomes (~1.4 GB) and
+          #    replace their hard library() calls with an on-demand installer that puts
+          #    them in a per-user library the first time the TF module is used.
+          bootstrap <- c(
+            "",
+            "# ---- desktop bundle: on-demand genome packages ----",
+            ".genome_lib <- function() {",
+            "  base <- if (.Platform$OS.type == \"windows\") file.path(Sys.getenv(\"APPDATA\"), \"ScRDAVis\") else file.path(Sys.getenv(\"HOME\"), \".local\", \"share\", \"ScRDAVis\")",
+            "  lib <- file.path(base, \"rlib\")",
+            "  dir.create(lib, recursive = TRUE, showWarnings = FALSE)",
+            "  lib",
+            "}",
+            "ensure_bsgenome <- function(pkg) {",
+            "  lib <- .genome_lib()",
+            "  inlib <- function() pkg %in% rownames(utils::installed.packages(lib.loc = lib))",
+            "  if (!inlib()) {",
+            "    if (!requireNamespace(\"BiocManager\", quietly = TRUE)) stop(\"BiocManager is required to download \", pkg)",
+            "    message(\"Installing \", pkg, \" (about 700 MB) into \", lib)",
+            "    dlid <- paste0(\"genome_\", pkg)",
+            "    if (requireNamespace(\"shiny\", quietly = TRUE)) shiny::showNotification(paste0(\"Downloading \", pkg, \" (~700 MB). This can take 10-30 minutes; please keep the window open.\"), duration = NULL, id = dlid)",
+            "    old <- getOption(\"timeout\"); options(timeout = 7200); on.exit(options(timeout = old), add = TRUE)",
+            "    try(BiocManager::install(pkg, lib = lib, update = FALSE, ask = FALSE), silent = TRUE)",
+            "    if (requireNamespace(\"shiny\", quietly = TRUE)) shiny::removeNotification(dlid)",
+            "    if (!inlib()) stop(\"Could not install \", pkg, \". Check the network connection and free disk space, then retry the TF module.\")",
+            "  }",
+            "  .libPaths(c(lib, .libPaths()))",
+            "  suppressPackageStartupMessages(library(pkg, character.only = TRUE))",
+            "}",
+            ".libPaths(c(.genome_lib(), .libPaths()))"
+          )
+          g <- "global.R"; x <- readLines(g, warn = FALSE)
+          x <- x[!grepl("require\\(\"BSgenome", x)]
+          writeLines(c(x, bootstrap), g)
+
+          tf <- "scripts/tfrn1.R"; y <- readLines(tf, warn = FALSE)
+          y <- gsub("library(\"BSgenome.Hsapiens.UCSC.hg38\")", "ensure_bsgenome(\"BSgenome.Hsapiens.UCSC.hg38\")", y, fixed = TRUE)
+          y <- gsub("library(\"BSgenome.Mmusculus.UCSC.mm10\")", "ensure_bsgenome(\"BSgenome.Mmusculus.UCSC.mm10\")", y, fixed = TRUE)
+          writeLines(y, tf)
+
           # 2) Vendor the sc-Type reference scripts + database so the scType module works offline.
           dir.create(file.path("www", "sctype"), showWarnings = FALSE, recursive = TRUE)
           urls <- c(
@@ -144,16 +172,16 @@ jobs:
           if (ok) {
             for (f in c("scripts/multiple_celltype.R", "scripts/subclustering_multiple_celltype.R")) {
               if (!file.exists(f)) next
-              y <- readLines(f, warn = FALSE)
-              y <- gsub("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/gene_sets_prepare.R", "www/sctype/gene_sets_prepare.R", y, fixed = TRUE)
-              y <- gsub("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_score_.R", "www/sctype/sctype_score.R", y, fixed = TRUE)
-              y <- gsub("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/ScTypeDB_full.xlsx", "www/sctype/ScTypeDB_full.xlsx", y, fixed = TRUE)
-              writeLines(y, f)
+              z <- readLines(f, warn = FALSE)
+              z <- gsub("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/gene_sets_prepare.R", "www/sctype/gene_sets_prepare.R", z, fixed = TRUE)
+              z <- gsub("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/R/sctype_score_.R", "www/sctype/sctype_score.R", z, fixed = TRUE)
+              z <- gsub("https://raw.githubusercontent.com/IanevskiAleksandr/sc-type/master/ScTypeDB_full.xlsx", "www/sctype/ScTypeDB_full.xlsx", z, fixed = TRUE)
+              writeLines(z, f)
             }
             cat("sc-Type assets vendored\n")
           }
-          cat("desktop patches applied; BSgenome refs left:",
-              sum(grepl("BSgenome", readLines(g, warn = FALSE))), "\n")
+          cat("desktop patches applied; ensure_bsgenome present:",
+              any(grepl("ensure_bsgenome", readLines(g, warn = FALSE))), "\n")
 
       - name: Assemble bundle (app/ + rlib/ + manifest.json)
         timeout-minutes: 120
@@ -298,6 +326,10 @@ jobs:
             download.file(bu, bf, mode = "wb", quiet = TRUE, method = "libcurl")
             bex <- file.path(tempdir(), "bpex"); dir.create(bex, showWarnings = FALSE); utils::untar(bf, exdir = bex)
             bsrc <- file.path(list.dirs(bex, recursive = FALSE)[1], "r")
+            bdcf <- read.dcf(file.path(bsrc, "DESCRIPTION"))
+            bneed <- setdiff(dcf_deps(bdcf), c(have(), base_pkgs))
+            bneed <- intersect(bneed, rownames(db))
+            if (length(bneed)) { cat("BPCells deps:", paste(bneed, collapse = ", "), "\n"); ins(bneed) }
             install.packages(bsrc, lib = lib, repos = NULL, type = "source", dependencies = FALSE)
             if (!"BPCells" %in% have()) stop("BPCells install failed")
             cat("BPCells installed\n")
