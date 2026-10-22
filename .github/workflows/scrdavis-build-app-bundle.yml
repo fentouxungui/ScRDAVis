@@ -60,14 +60,14 @@ env:
   DEMO_OBJECT: ""
   DEMO_SAVE_AS: ""
   DEMO_RDATA: ""
-  EXTRA_PKGS: "BiocManager CellChat ComplexHeatmap DT DoubletFinder EnhancedVolcano EnsDb.Hsapiens.v86 EnsDb.Mmusculus.v79 GPTCelltype GenomicRanges HGNChelper JASPAR2020 JASPAR2024 NMF R.utils RSQLite ReactomePA Seurat SeuratDisk SeuratObject SeuratWrappers SingleR TFBSTools WGCNA celldex circlize clusterProfiler cowplot data.table devtools dplyr enrichR enrichplot fgsea filelock genesorteR ggalluvial ggplot2 ggplotify ggpubr ggraph ggrepel ggupset glmGamPoi harmony hdWGCNA hdf5r igraph magrittr metap monocle3 motifmatchr msigdbr msigdf multtest openai openxlsx org.Hs.eg.db org.Mm.eg.db org.Mmu.eg.db org.Rn.eg.db org.Ss.eg.db patchwork pdftools presto remotes reshape2 scRNAseq scran sctransform shiny shinyFiles shinyWidgets shinycssloaders shinydashboard shinyjs shinythemes tibble xgboost zip"
+  EXTRA_PKGS: "BiocManager CellChat ComplexHeatmap DT DoubletFinder EnhancedVolcano EnsDb.Hsapiens.v86 EnsDb.Mmusculus.v79 GPTCelltype GenomicRanges HGNChelper JASPAR2020 JASPAR2024 NMF R.utils RSQLite ReactomePA Seurat SeuratDisk SeuratObject SeuratWrappers SingleR TFBSTools WGCNA celldex circlize clusterProfiler cowplot data.table devtools dplyr enrichR enrichplot fgsea filelock genesorteR ggalluvial ggplot2 ggplotify ggpubr ggraph ggrepel ggupset glmGamPoi harmony hdWGCNA hdf5r igraph magrittr metap monocle3 motifmatchr msigdbr msigdf multtest openai openxlsx org.Hs.eg.db org.Mm.eg.db org.Mmu.eg.db org.Rn.eg.db org.Ss.eg.db patchwork BPCells leidenbase speedglm pdftools presto remotes reshape2 scRNAseq scran sctransform shiny shinyFiles shinyWidgets shinycssloaders shinydashboard shinyjs shinythemes tibble xgboost zip"
   EXCLUDE: ""
-  ARCHIVE_URLS: "https://codeload.github.com/jinworks/CellChat/tar.gz/refs/heads/main https://codeload.github.com/chris-mcginnis-ucsf/DoubletFinder/tar.gz/refs/heads/master https://codeload.github.com/Winnie09/GPTCelltype/tar.gz/refs/heads/master https://codeload.github.com/immunogenomics/presto/tar.gz/refs/heads/master https://codeload.github.com/cole-trapnell-lab/monocle3/tar.gz/refs/heads/master https://codeload.github.com/satijalab/seurat-wrappers/tar.gz/refs/heads/master https://codeload.github.com/mojaveazure/seurat-disk/tar.gz/refs/heads/master https://codeload.github.com/mahmoudibrahim/genesorteR/tar.gz/refs/heads/master https://codeload.github.com/smorabit/hdWGCNA/tar.gz/refs/heads/dev https://codeload.github.com/stephenturner/msigdf/tar.gz/refs/heads/master"
+  ARCHIVE_URLS: "https://codeload.github.com/jinworks/CellChat/tar.gz/refs/heads/main https://codeload.github.com/chris-mcginnis-ucsf/DoubletFinder/tar.gz/refs/heads/master https://codeload.github.com/Winnie09/GPTCelltype/tar.gz/refs/heads/master https://codeload.github.com/immunogenomics/presto/tar.gz/refs/heads/master https://codeload.github.com/cole-trapnell-lab/monocle3/tar.gz/refs/heads/master https://codeload.github.com/satijalab/seurat-wrappers/tar.gz/refs/heads/master https://codeload.github.com/mojaveazure/seurat-disk/tar.gz/refs/heads/master https://codeload.github.com/mahmoudibrahim/genesorteR/tar.gz/refs/heads/master https://codeload.github.com/smorabit/hdWGCNA/tar.gz/refs/heads/dev https://codeload.github.com/stephenturner/msigdf/tar.gz/refs/heads/master https://codeload.github.com/cole-trapnell-lab/leidenbase/tar.gz/refs/heads/master"
   EXTRA_REPOS: ""
   SOFT_PKGS: "BSgenome.Hsapiens.UCSC.hg38 BSgenome.Mmusculus.UCSC.mm10"
   SOURCE_REBUILD: ""
   PREFETCH_SCRIPT: ""
-  APP_NOTES: "All analysis modules and www/ demo data are bundled. BSgenome.Hsapiens.UCSC.hg38 and BSgenome.Mmusculus.UCSC.mm10 (~1.4 GB combined) exceed the 2 GiB desktop bundle limit and are not shipped, so the TF motif-scanning module (JASPAR + BSgenome) is disabled; every other module is available offline. The top-level auto-install lines for those two genomes were removed from global.R in the bundle only. sc-Type reference scripts and ScTypeDB are vendored into www/sctype for offline use."
+  APP_NOTES: "All analysis modules and www/ demo data are bundled. BSgenome.Hsapiens.UCSC.hg38 and BSgenome.Mmusculus.UCSC.mm10 (~1.4 GB combined) exceed the 2 GiB desktop bundle limit and are not shipped, so the TF motif-scanning module (JASPAR + BSgenome) is disabled; every other module is available offline. The top-level auto-install lines for those two genomes were removed from global.R in the bundle only. sc-Type reference scripts and ScTypeDB are vendored into www/sctype for offline use. This first build is Windows-only: monocle3 imports ggrastr, which pulls Cairo, whose macOS binary requires XQuartz and cannot be shipped portably; macOS support will be addressed separately."
   MAX_REQUEST_MB: "4096"
   SMOKE: "on"
   SMOKE_TIMEOUT_SEC: "1800"
@@ -81,7 +81,9 @@ jobs:
       matrix:
         include:
           - { os: windows-latest, platform: "win-x64" }
-          - { os: macos-14,       platform: "mac-arm64" }
+          # macOS is intentionally not built yet: monocle3 imports ggrastr -> Cairo, whose
+          # CRAN macOS binary requires XQuartz and cannot be shipped portably.
+          # Re-enable the macos-14 entry once that dependency is handled.
     steps:
       - uses: actions/checkout@v4
 
@@ -289,6 +291,17 @@ jobs:
 
           if (mode == "package-fn") { install.packages(pkgroot, lib = lib, repos = NULL, type = "source", dependencies = FALSE); if (!pkg_name %in% have()) stop("app package failed to install: ", pkg_name) }
 
+          if (!"BPCells" %in% have()) {
+            bu <- "https://codeload.github.com/bnprks/BPCells/tar.gz/refs/heads/main"
+            bf <- file.path(tempdir(), "bpcell.tar.gz")
+            cat("installing BPCells from", bu, "\n")
+            download.file(bu, bf, mode = "wb", quiet = TRUE, method = "libcurl")
+            bex <- file.path(tempdir(), "bpex"); dir.create(bex, showWarnings = FALSE); utils::untar(bf, exdir = bex)
+            bsrc <- file.path(list.dirs(bex, recursive = FALSE)[1], "r")
+            install.packages(bsrc, lib = lib, repos = NULL, type = "source", dependencies = FALSE)
+            if (!"BPCells" %in% have()) stop("BPCells install failed")
+            cat("BPCells installed\n")
+          }
           archives <- split_pkgs(Sys.getenv("ARCHIVE_URLS"))
           adl <- lapply(seq_along(archives), function(i) {
             u <- archives[i]; f <- file.path(tempdir(), sprintf("arch-%02d.tar.gz", i))
