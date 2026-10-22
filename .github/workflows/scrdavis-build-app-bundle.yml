@@ -127,6 +127,7 @@ jobs:
             "  lib",
             "}",
             "ensure_bsgenome <- function(pkg) {",
+            "  if (requireNamespace(pkg, quietly = TRUE)) { suppressPackageStartupMessages(library(pkg, character.only = TRUE)); return(invisible(TRUE)) }",
             "  lib <- .genome_lib()",
             "  inlib <- function() pkg %in% rownames(utils::installed.packages(lib.loc = lib))",
             "  if (!inlib()) {",
@@ -139,10 +140,10 @@ jobs:
             "    if (requireNamespace(\"shiny\", quietly = TRUE)) shiny::removeNotification(dlid)",
             "    if (!inlib()) stop(\"Could not install \", pkg, \". Check the network connection and free disk space, then retry the TF module.\")",
             "  }",
-            "  .libPaths(c(lib, .libPaths()))",
+            "  .libPaths(unique(c(.libPaths(), lib)))",
             "  suppressPackageStartupMessages(library(pkg, character.only = TRUE))",
             "}",
-            ".libPaths(c(.genome_lib(), .libPaths()))"
+            ".libPaths(unique(c(.libPaths(), .genome_lib())))"
           )
           g <- "global.R"; x <- readLines(g, warn = FALSE)
           x <- x[!grepl("require\\(\"BSgenome", x)]
