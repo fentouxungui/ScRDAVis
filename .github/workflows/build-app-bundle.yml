@@ -619,6 +619,8 @@ jobs:
       - name: Assemble bundle (app/ + rlib/ + manifest.json)
         timeout-minutes: 180
         shell: bash
+        env:
+          BUNDLE_PLATFORM: ${{ matrix.platform }}
         run: |
           cat > assemble-bundle.R <<'EOF'
           cat("R_HOME:", R.home(), " site:", file.exists(file.path(R.home("etc"), "Rprofile.site")), "\n")
@@ -936,7 +938,7 @@ jobs:
 
           entry <- if (file.exists(file.path(appdir, "app.R"))) "app/app.R" else "app/ui.R"
           pkgs <- as.data.frame(installed.packages(lib.loc = lib), stringsAsFactors = FALSE)
-          platform <- "${{ matrix.platform }}"
+          platform <- Sys.getenv("BUNDLE_PLATFORM")
           lock <- data.frame(package = pkgs$Package, version = pkgs$Version, stringsAsFactors = FALSE)
           lock <- lock[order(lock$package), ]
           lock_file <- sprintf("deps-%s.json", platform)
@@ -1026,9 +1028,11 @@ jobs:
 
       - name: Zip + sha256 + metadata + size guard
         shell: bash
+        env:
+          BUNDLE_PLATFORM: ${{ matrix.platform }}
         run: |
           cat > zip-bundle.R <<'EOF'
-          platform <- "${{ matrix.platform }}"
+          platform <- Sys.getenv("BUNDLE_PLATFORM")
           r_version <- Sys.getenv("R_VERSION")
           r_abi <- paste(head(strsplit(r_version, ".", fixed = TRUE)[[1]], 2), collapse = ".")
           out <- sprintf("%s-%s-%s-r%s.zip", Sys.getenv("APP_ID"), Sys.getenv("VERSION"), platform, r_abi)
