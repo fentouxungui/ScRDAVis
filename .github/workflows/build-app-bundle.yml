@@ -775,7 +775,18 @@ jobs:
               if (grepl("[.]zip$", u, ignore.case = TRUE)) utils::unzip(f, exdir = ex) else utils::untar(f, exdir = ex)
               d <- list.files(ex, pattern = "^DESCRIPTION$", recursive = TRUE, full.names = TRUE)
               d <- d[!grepl("([.]Rcheck|/tests?/|/vignettes?/|/data/)", gsub("\\\\", "/", d))]
-              if (length(d) != 1) stop("ARCHIVE_URLS: expected one package DESCRIPTION inside ", basename(u), ", found ", length(d), ". Use a package tarball or install it in a manual step.")
+              if (length(d) > 1) {
+                wanted <- split_pkgs(Sys.getenv("FORCED_PKGS"))
+                pkg_of <- function(f) tryCatch(unname(read.dcf(f)[1, "Package"]), error = function(e) NA_character_)
+                candidates <- vapply(d, pkg_of, character(1))
+                cat("archive DESCRIPTION candidates:", paste(sprintf("%s=%s", basename(dirname(d)), candidates), collapse = ", "), "\n")
+                hit <- which(!is.na(candidates) & candidates %in% wanted)
+                if (length(hit) == 1) {
+                  d <- d[hit]
+                  cat("archive selected:", basename(dirname(d)), "package", candidates[hit], "\n")
+                }
+              }
+              if (length(d) != 1) stop("ARCHIVE_URLS: expected one package DESCRIPTION inside ", basename(u), ", found ", length(d), " (", paste(basename(dirname(d)), collapse = ", "), "): ", paste(d, collapse = ", "), ". Use a package tarball, add the intended package to FORCED_PKGS, or install it in a manual step.")
               pkgdir <- dirname(d)
               cat("archive subdirectory:", basename(pkgdir), "\n")
             }
