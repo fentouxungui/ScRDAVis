@@ -139,7 +139,7 @@ env:
   DEMO_OBJECT: ""
   DEMO_SAVE_AS: ""
   DEMO_RDATA: ""
-  EXTRA_PKGS: "BiocManager CellChat ComplexHeatmap DT DoubletFinder EnhancedVolcano EnsDb.Hsapiens.v86 EnsDb.Mmusculus.v79 GPTCelltype GenomicRanges HGNChelper JASPAR2020 JASPAR2024 NMF R.utils RSQLite ReactomePA Seurat SeuratDisk SeuratObject SeuratWrappers SingleR TFBSTools WGCNA celldex circlize clusterProfiler cowplot data.table devtools dplyr enrichR enrichplot fgsea filelock genesorteR ggalluvial ggplot2 ggplotify ggpubr ggraph ggrepel ggupset glmGamPoi harmony hdWGCNA hdf5r igraph magrittr metap monocle3 motifmatchr msigdbr msigdf multtest openai openxlsx org.Hs.eg.db org.Mm.eg.db org.Mmu.eg.db org.Rn.eg.db org.Ss.eg.db patchwork BPCells leidenbase speedglm pdftools presto remotes reshape2 scRNAseq scran sctransform shiny shinyFiles shinyWidgets shinycssloaders shinydashboard shinyjs shinythemes tibble xgboost zip"
+  EXTRA_PKGS: "BiocManager CellChat ComplexHeatmap DT DoubletFinder EnhancedVolcano EnsDb.Hsapiens.v86 EnsDb.Mmusculus.v79 GPTCelltype GenomicRanges HGNChelper JASPAR2020 JASPAR2024 NMF R.utils RSQLite ReactomePA Seurat SeuratDisk SeuratObject SeuratWrappers SingleR TFBSTools WGCNA celldex circlize clusterProfiler cowplot data.table dplyr enrichR enrichplot fgsea filelock genesorteR ggalluvial ggplot2 ggplotify ggpubr ggraph ggrepel ggupset glmGamPoi harmony hdWGCNA hdf5r igraph magrittr metap monocle3 motifmatchr msigdbr msigdf multtest openai openxlsx org.Hs.eg.db org.Mm.eg.db org.Mmu.eg.db org.Rn.eg.db org.Ss.eg.db patchwork BPCells leidenbase speedglm pdftools presto remotes reshape2 scRNAseq scran sctransform shiny shinyFiles shinyWidgets shinycssloaders shinydashboard shinyjs shinythemes tibble xgboost zip"
   EXCLUDE: ""
   ARCHIVE_URLS: "https://codeload.github.com/jinworks/CellChat/tar.gz/refs/heads/main https://codeload.github.com/chris-mcginnis-ucsf/DoubletFinder/tar.gz/refs/heads/master https://codeload.github.com/Winnie09/GPTCelltype/tar.gz/refs/heads/master https://codeload.github.com/immunogenomics/presto/tar.gz/refs/heads/master https://codeload.github.com/cole-trapnell-lab/monocle3/tar.gz/refs/heads/master https://codeload.github.com/satijalab/seurat-wrappers/tar.gz/refs/heads/master https://codeload.github.com/mojaveazure/seurat-disk/tar.gz/refs/heads/master https://codeload.github.com/mahmoudibrahim/genesorteR/tar.gz/refs/heads/master https://codeload.github.com/smorabit/hdWGCNA/tar.gz/refs/heads/dev https://codeload.github.com/stephenturner/msigdf/tar.gz/refs/heads/master https://codeload.github.com/cole-trapnell-lab/leidenbase/tar.gz/refs/heads/master https://codeload.github.com/bnprks/BPCells/tar.gz/refs/heads/main"
   # Packages that must exist in rlib/ after ARCHIVE_URLS installs; the build
@@ -322,6 +322,12 @@ jobs:
           )
           g <- "global.R"; x <- readLines(g, warn = FALSE)
           x <- x[!grepl("require\\(\"BSgenome", x)]
+          # devtools is a build-time convenience; it imports pak, whose private
+          # binary library (rlib/pak/library) is not rewritten by portable R's
+          # .portable patcher and keeps /Library/Frameworks/R.framework refs.
+          # The app never calls devtools::*, so drop both the package (EXTRA_PKGS)
+          # and this startup check.
+          x <- x[!grepl("devtools", x, fixed = TRUE)]
           writeLines(c(x, bootstrap), g)
 
           tf <- "scripts/tfrn1.R"; y <- readLines(tf, warn = FALSE)
